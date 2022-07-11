@@ -534,7 +534,7 @@ namespace IsoMesh
             //m_mesh.SetUVs(0, uvs, 0, vertexCount);
             m_mesh.SetColors(colours, 0, vertexCount);
             m_mesh.SetIndices(indices, 0, triangleCount * 3, MeshTopology.Triangles, 0, calculateBounds: true);
-
+            
             MeshFilter.mesh = m_mesh;
 
             if (MeshCollider)
@@ -675,6 +675,27 @@ namespace IsoMesh
             m_meshVertexMaterialsBuffer = new ComputeBuffer(countCubed * 3, SDFMaterialGPU.Stride, ComputeBufferType.Structured);
 
             m_intermediateVertexBuffer = new ComputeBuffer(countCubed * 3, NewVertexData.Stride, ComputeBufferType.Append);
+
+            if ( m_mesh == null )
+            {
+                m_mesh = new Mesh();
+                var vertices = new Vector3[countCubed * 3];
+                var normals = new Vector3[countCubed * 3];
+                var colors = new Color[countCubed * 3];
+                var indices = new int[countCubed * 3];
+
+                m_mesh.SetVertices(vertices);
+                m_mesh.SetNormals(normals);
+                m_mesh.SetColors(colors);
+                m_mesh.indexFormat = IndexFormat.UInt32;
+                m_mesh.SetIndices(indices, MeshTopology.Triangles, 0);
+                m_mesh.UploadMeshData(true);
+                m_mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 10);
+
+                m_mesh.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
+                m_mesh.indexBufferTarget |= GraphicsBuffer.Target.Raw;
+            }
+
 
             if (m_mainSettings.ProceduralMaterial)
             {
