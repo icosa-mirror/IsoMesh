@@ -24,7 +24,7 @@ namespace IsoMesh
         {
             public static readonly int PointsPerSide_Int = Shader.PropertyToID("_PointsPerSide");
             public static readonly int CellSize_Float = Shader.PropertyToID("_CellSize");
-            
+
             public static readonly int BinarySearchIterations_Int = Shader.PropertyToID("_BinarySearchIterations");
             public static readonly int IsosurfaceExtractionType_Int = Shader.PropertyToID("_IsosurfaceExtractionType");
             public static readonly int MaxAngleCosine_Float = Shader.PropertyToID("_MaxAngleCosine");
@@ -534,7 +534,7 @@ namespace IsoMesh
             //m_mesh.SetUVs(0, uvs, 0, vertexCount);
             m_mesh.SetColors(colours, 0, vertexCount);
             m_mesh.SetIndices(indices, 0, triangleCount * 3, MeshTopology.Triangles, 0, calculateBounds: true);
-            
+
             MeshFilter.mesh = m_mesh;
 
             if (MeshCollider)
@@ -596,14 +596,14 @@ namespace IsoMesh
                 return;
 
             ReleaseUnmanagedMemory();
-            
+
             m_isInitializing = true;
             m_initialized = true;
 
             m_computeShaderInstance = Instantiate(ComputeShader);
 
             SendTransformToGPU();
-            
+
             m_kernels = new Kernels(ComputeShader);
 
             // counter buffer has 18 integers: [vertex count, 1, 1, triangle count, 1, 1, vertex count / 64, 1, 1, triangle count / 64, 1, 1, intermediate vertex count, 1, 1, intermediate vertex count / 64, 1, 1]
@@ -675,27 +675,6 @@ namespace IsoMesh
             m_meshVertexMaterialsBuffer = new ComputeBuffer(countCubed * 3, SDFMaterialGPU.Stride, ComputeBufferType.Structured);
 
             m_intermediateVertexBuffer = new ComputeBuffer(countCubed * 3, NewVertexData.Stride, ComputeBufferType.Append);
-
-            if ( m_mesh == null )
-            {
-                m_mesh = new Mesh();
-                var vertices = new Vector3[countCubed * 3];
-                var normals = new Vector3[countCubed * 3];
-                var colors = new Color[countCubed * 3];
-                var indices = new int[countCubed * 3];
-
-                m_mesh.SetVertices(vertices);
-                m_mesh.SetNormals(normals);
-                m_mesh.SetColors(colors);
-                m_mesh.indexFormat = IndexFormat.UInt32;
-                m_mesh.SetIndices(indices, MeshTopology.Triangles, 0);
-                m_mesh.UploadMeshData(true);
-                m_mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 10);
-
-                m_mesh.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
-                m_mesh.indexBufferTarget |= GraphicsBuffer.Target.Raw;
-            }
-
 
             if (m_mainSettings.ProceduralMaterial)
             {
@@ -848,7 +827,7 @@ namespace IsoMesh
                 UpdateMesh();
             }
         }
-        
+
         /// <summary>
         /// Dispatch all the compute kernels in the correct order. Basically... do the thing.
         /// </summary>
@@ -969,7 +948,7 @@ namespace IsoMesh
         {
             m_isInitializing = true;
             m_algorithmSettings.CopySettings(algorithmSettings);
-            
+
             OnVisualNormalSmoothingChanged();
             OnMaxAngleToleranceChanged();
             OnGradientDescentIterationsChanged();
@@ -1008,7 +987,7 @@ namespace IsoMesh
             if (m_mainSettings.AutoUpdate && !m_isInitializing)
                 UpdateMesh();
         }
-        
+
         public void OnVisualNormalSmoothingChanged()
         {
             if (!m_initialized || !m_isEnabled)
@@ -1035,7 +1014,7 @@ namespace IsoMesh
         {
             if (!m_initialized || !m_isEnabled)
                 return;
-            
+
             m_computeShaderInstance.SetInt(Properties.GradientDescentIterations_Int, m_algorithmSettings.GradientDescentIterations);
 
             if (m_mainSettings.AutoUpdate && !m_isInitializing)
@@ -1063,7 +1042,7 @@ namespace IsoMesh
             if (m_mainSettings.AutoUpdate && !m_isInitializing)
                 UpdateMesh();
         }
-        
+
         public void OnOutputModeChanged()
         {
             if (TryGetOrCreateMeshGameObject(out GameObject meshGameObject))
