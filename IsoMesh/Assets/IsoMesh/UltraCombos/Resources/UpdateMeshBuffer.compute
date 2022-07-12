@@ -1,0 +1,33 @@
+#pragma kernel Main
+
+struct Vertex
+{
+	float3 position;
+	float3 normal;
+	float4 color;
+};
+
+StructuredBuffer<float3> VertexBuffer;
+StructuredBuffer<float3> NormalBuffer;
+StructuredBuffer<float4> ColorBuffer;
+StructuredBuffer<int> IndexBuffer;
+
+RWStructuredBuffer<Vertex> MeshVertexBuffer;
+RWStructuredBuffer<int> MeshIndexBuffer;
+
+uint indexCount;
+
+[numthreads(1024, 1, 1)]
+void Main (uint3 id : SV_DispatchThreadID)
+{
+	uint index = id.x;
+
+	Vertex v;
+	v.position = VertexBuffer[index];
+	v.normal = NormalBuffer[index];
+	v.color = ColorBuffer[index];
+	MeshVertexBuffer[index] = v;
+
+	MeshIndexBuffer[index] = index < indexCount ? IndexBuffer[index] : 0;
+	//MeshIndexBuffer[index] = IndexBuffer[index];
+}

@@ -3,6 +3,7 @@ using UnityEngine;
 using System.Runtime.InteropServices;
 using Unity.Collections;
 using UnityEngine.Rendering;
+using UnityEngine.Events;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -18,6 +19,18 @@ namespace IsoMesh
     [ExecuteInEditMode]
     public class SDFGroupMeshGenerator : MonoBehaviour, ISDFGroupComponent
     {
+        #region UltraCombos
+        public ComputeBuffer VertexBuffer => m_meshVerticesBuffer;
+        public ComputeBuffer NormalBuffer => m_meshNormalsBuffer;
+        public ComputeBuffer ColorBuffer => m_meshVertexColoursBuffer;
+        public ComputeBuffer TriangleBuffer => m_meshTrianglesBuffer;
+        public ComputeBuffer CounterBuffer => m_counterBuffer;
+
+        public UnityEvent OnDataChanged = new UnityEvent();
+        public UnityEvent OnBufferUpdated = new UnityEvent();
+
+        #endregion
+
         #region Fields and Properties
 
         private static class Properties
@@ -718,6 +731,8 @@ namespace IsoMesh
             ResetCounters();
             SetVertexData();
             SetTriangleData();
+
+            OnDataChanged.Invoke();
         }
 
         /// <summary>
@@ -845,6 +860,8 @@ namespace IsoMesh
             DispatchGenerateTriangles();
             DispatchBuildIndexBuffer();
             DispatchAddIntermediateVerticesToIndexBuffer();
+
+            OnBufferUpdated.Invoke();
         }
 
         /// <summary>
@@ -913,7 +930,7 @@ namespace IsoMesh
 
             if (m_mainSettings.OutputMode == OutputMode.MeshFilter && TryGetOrCreateMeshGameObject(out GameObject meshGameObject))
                 m_computeShaderInstance.SetMatrix(Properties.MeshTransform_Matrix4x4, meshGameObject.transform.worldToLocalMatrix);
-            else if (m_mainSettings.OutputMode == OutputMode.Procedural)
+            else if (m_mainSettings.OutputMode == OutputMode.Procedural || m_mainSettings.OutputMode == OutputMode.None)
                 m_computeShaderInstance.SetMatrix(Properties.MeshTransform_Matrix4x4, Matrix4x4.identity);
         }
 
@@ -1052,7 +1069,7 @@ namespace IsoMesh
                 if (MeshRenderer)
                     MeshRenderer.enabled = !Group.IsEmpty;
             }
-            else if (m_mainSettings.OutputMode == OutputMode.Procedural)
+            else if (m_mainSettings.OutputMode == OutputMode.Procedural || m_mainSettings.OutputMode == OutputMode.None)
             {
                 if (meshGameObject)
                     meshGameObject.SetActive(false);
@@ -1262,5 +1279,5 @@ namespace IsoMesh
     public enum EdgeIntersectionType { Interpolation, BinarySearch };
 
     public enum CellSizeMode { Fixed, Density };
-    public enum OutputMode { MeshFilter, Procedural };
+    public enum OutputMode { MeshFilter, Procedural, None };
 }
