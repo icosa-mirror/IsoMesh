@@ -928,11 +928,11 @@ namespace IsoMesh
 
             m_computeShaderInstance.SetMatrix(Properties.Transform_Matrix4x4, transform.localToWorldMatrix);
 
-            if (m_mainSettings.OutputMode == OutputMode.MeshFilter && TryGetOrCreateMeshGameObject(out GameObject meshGameObject))
+            if (m_mainSettings.OutputMode == (OutputMode.MeshFilter & OutputMode.None) && TryGetOrCreateMeshGameObject(out GameObject meshGameObject))
                 m_computeShaderInstance.SetMatrix(Properties.MeshTransform_Matrix4x4, meshGameObject.transform.worldToLocalMatrix);
-            else if (m_mainSettings.OutputMode == OutputMode.Procedural || m_mainSettings.OutputMode == OutputMode.None)
+            else if (m_mainSettings.OutputMode == OutputMode.Procedural )
                 m_computeShaderInstance.SetMatrix(Properties.MeshTransform_Matrix4x4, Matrix4x4.identity);
-        }
+		}
 
         public void SetVoxelSettings(VoxelSettings voxelSettings)
         {
@@ -1069,7 +1069,7 @@ namespace IsoMesh
                 if (MeshRenderer)
                     MeshRenderer.enabled = !Group.IsEmpty;
             }
-            else if (m_mainSettings.OutputMode == OutputMode.Procedural || m_mainSettings.OutputMode == OutputMode.None)
+            else if (m_mainSettings.OutputMode == (OutputMode.Procedural & OutputMode.None))
             {
                 if (meshGameObject)
                     meshGameObject.SetActive(false);
@@ -1279,5 +1279,10 @@ namespace IsoMesh
     public enum EdgeIntersectionType { Interpolation, BinarySearch };
 
     public enum CellSizeMode { Fixed, Density };
-    public enum OutputMode { MeshFilter, Procedural, None };
+    public enum OutputMode
+	{
+		None = 0,
+		Procedural = 1 << 0,
+		MeshFilter = 1 << 1,
+	};
 }

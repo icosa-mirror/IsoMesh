@@ -98,22 +98,28 @@ namespace IsoMesh
         private void OnDrawGizmos()
         {
             Color col = Operation == SDFCombineType.SmoothSubtract ? Color.red : Color.blue;
-            Handles.color = col;
-            Handles.matrix = transform.localToWorldMatrix;
-
-            switch (Type)
-            {
-                case SDFPrimitiveType.BoxFrame:
-                case SDFPrimitiveType.Cuboid:
-                    Handles.DrawWireCube(Vector3.zero, m_data.XYZ() * 2f);
-                    break;
-                //case SDFPrimitiveType.BoxFrame:
-                //    Handles.DrawWireCube(Vector3.zero, data.XYZ() * 2f);
-                //    break;
-                default:
-                    Handles.DrawWireDisc(Vector3.zero, Vector3.up, m_data.x);
-                    break;
-            }
+			using ( new Handles.DrawingScope( col, transform.localToWorldMatrix ) )
+			{
+				switch ( Type )
+				{
+					case SDFPrimitiveType.BoxFrame:
+					case SDFPrimitiveType.Cuboid:
+						Handles.DrawWireCube( Vector3.zero, m_data.XYZ() * 2f );
+						break;
+					//case SDFPrimitiveType.BoxFrame:
+					//    Handles.DrawWireCube(Vector3.zero, data.XYZ() * 2f);
+					//    break;
+					case SDFPrimitiveType.Sphere:
+						{
+							Handles.DrawWireDisc( Vector3.zero, Vector3.up, m_data.x );
+							Handles.DrawWireDisc( Vector3.zero, Vector3.right, m_data.x );
+							Handles.DrawWireDisc( Vector3.zero, Vector3.forward, m_data.x );
+						}
+						break;
+					default:						
+						break;
+				}
+			}
         }
 
 #endif

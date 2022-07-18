@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -68,7 +68,8 @@ namespace IsoMesh
 
         public static void Create(string path, string name, float[] samples, float[] packedUVs, int tessellationLevel, int size, float padding, Mesh sourceMesh, Vector3 minBounds, Vector3 maxBounds)
         {
-            SDFMeshAsset asset = Utils.CreateAsset<SDFMeshAsset>(path, name + "_" + size);
+#if UNITY_EDITOR
+			SDFMeshAsset asset = Utils.CreateAsset<SDFMeshAsset>(path, name + "_" + size);
             asset.m_sourceMesh = sourceMesh;
             asset.m_minBounds = minBounds;
             asset.m_maxBounds = maxBounds;
@@ -78,7 +79,7 @@ namespace IsoMesh
             asset.m_samples = samples;
             asset.m_packedUVs = packedUVs;
 
-#if UNITY_EDITOR
+
             EditorUtility.SetDirty(asset);
             AssetDatabase.SaveAssets();
 #endif

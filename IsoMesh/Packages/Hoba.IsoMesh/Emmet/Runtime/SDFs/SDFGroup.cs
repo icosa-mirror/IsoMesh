@@ -2,8 +2,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
+#if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.Compilation;
+#endif
 
 namespace IsoMesh
 {
@@ -541,8 +543,8 @@ namespace IsoMesh
 
             m_settingsBuffer.SetData(m_settingsArray);
         }
-
-        private void OnCompilationStarted(object param)
+#if UNITY_EDITOR
+		private void OnCompilationStarted(object param)
         {
             m_isEnabled = false;
 
@@ -550,7 +552,7 @@ namespace IsoMesh
             m_meshPackedUVsBuffer?.Dispose();
         }
 
-        private void OnPlayModeStateChanged(PlayModeStateChange stateChange)
+		private void OnPlayModeStateChanged(PlayModeStateChange stateChange)
         {
             // this ensures "m_isEnabled" is set to false while transitioning between play modes
             m_isEnabled = stateChange == PlayModeStateChange.EnteredPlayMode || stateChange == PlayModeStateChange.EnteredEditMode;
@@ -558,12 +560,12 @@ namespace IsoMesh
             m_meshSamplesBuffer?.Dispose();
             m_meshPackedUVsBuffer?.Dispose();
         }
+#endif
+	#endregion
 
-        #endregion
+		#region Structs
 
-        #region Structs
-
-        public struct Settings
+		public struct Settings
         {
             public static int Stride => sizeof(float) * 3;
 

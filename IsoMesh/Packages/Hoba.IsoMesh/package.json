@@ -1,0 +1,13 @@
+{
+  "name": "tw.hoba.isomesh",
+  "version": "1.0.0",
+  "displayName": "Hoba IsoMesh",
+  "description": "Package for IsoMesh",
+  "repository": "",
+  "type": "library",
+  "author": {
+    "name": "hoba",
+    "email": "shinabebel@gmail.com",
+    "url": "https://www.behance.net/shinabebel"
+  }
+}

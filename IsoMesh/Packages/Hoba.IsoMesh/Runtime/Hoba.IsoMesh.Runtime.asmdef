@@ -1,0 +1,16 @@
+{
+    "name": "Hoba.IsoMesh.Runtime",
+    "rootNamespace": "Hoba.IsoMesh",
+    "references": [
+        "GUID:7bf4c8ecdbba85044a2fec399b388a46"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

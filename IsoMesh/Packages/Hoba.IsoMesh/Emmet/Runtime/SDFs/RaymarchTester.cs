@@ -2,14 +2,16 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using IsoMesh;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 
 public class RaymarchTester : MonoBehaviour
 {
     [SerializeField]
     private SDFGroup m_group;
-    
-    private void OnDrawGizmos()
+#if UNITY_EDITOR
+	private void OnDrawGizmos()
     {
         if (!m_group)
             return;
@@ -38,4 +40,5 @@ public class RaymarchTester : MonoBehaviour
         Handles.color = Color.blue;
         Handles.DrawAAPolyLine(transform.position, transform.position + v);
     }
+#endif
 }
