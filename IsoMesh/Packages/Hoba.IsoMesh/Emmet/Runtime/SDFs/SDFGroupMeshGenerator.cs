@@ -558,7 +558,7 @@ namespace IsoMesh
         {
             meshGameObject = null;
 
-            // this looks weird, but remember that unity overrides the behaviour of 
+            // this looks weird, but remember that unity overrides the behaviour of
             // implicit boolean casting to mean "check whether the underlying c++ object is null"
             if (!this)
                 return false;
@@ -928,11 +928,17 @@ namespace IsoMesh
 
             m_computeShaderInstance.SetMatrix(Properties.Transform_Matrix4x4, transform.localToWorldMatrix);
 
-            if (m_mainSettings.OutputMode == (OutputMode.MeshFilter & OutputMode.None) && TryGetOrCreateMeshGameObject(out GameObject meshGameObject))
-                m_computeShaderInstance.SetMatrix(Properties.MeshTransform_Matrix4x4, meshGameObject.transform.worldToLocalMatrix);
-            else if (m_mainSettings.OutputMode == OutputMode.Procedural )
+            if (m_mainSettings.OutputMode == OutputMode.MeshFilter &&
+                TryGetOrCreateMeshGameObject(out GameObject meshGameObject))
+            {
+                m_computeShaderInstance.SetMatrix(Properties.MeshTransform_Matrix4x4,
+                    meshGameObject.transform.worldToLocalMatrix);
+            }
+            else
+            {
                 m_computeShaderInstance.SetMatrix(Properties.MeshTransform_Matrix4x4, Matrix4x4.identity);
-		}
+            }
+        }
 
         public void SetVoxelSettings(VoxelSettings voxelSettings)
         {
@@ -1062,17 +1068,19 @@ namespace IsoMesh
 
         public void OnOutputModeChanged()
         {
-            if (TryGetOrCreateMeshGameObject(out GameObject meshGameObject))
+	        GameObject meshGameObject;
+            if (m_mainSettings.OutputMode == OutputMode.MeshFilter &&
+                TryGetOrCreateMeshGameObject(out meshGameObject))
             {
                 meshGameObject.SetActive(true);
 
                 if (MeshRenderer)
                     MeshRenderer.enabled = !Group.IsEmpty;
             }
-            else if (m_mainSettings.OutputMode == (OutputMode.Procedural & OutputMode.None))
+            else if (m_mainSettings.OutputMode == OutputMode.Procedural &&
+                     TryGetOrCreateMeshGameObject(out meshGameObject))
             {
-                if (meshGameObject)
-                    meshGameObject.SetActive(false);
+                meshGameObject.SetActive(false);
             }
 
             SendTransformToGPU();
