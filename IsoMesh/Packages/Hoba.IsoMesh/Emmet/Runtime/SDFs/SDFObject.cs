@@ -31,6 +31,7 @@ namespace IsoMesh
 
         [SerializeField]
         protected float m_smoothing = MIN_SMOOTHING;
+        public float Smoothing => m_smoothing;
         
         protected bool m_isDirty = false;
         private bool m_isOrderDirty = false;
@@ -67,6 +68,12 @@ namespace IsoMesh
         public SDFMaterialGPU GetMaterial() => new SDFMaterialGPU(m_material);
 
         protected void SetDirty() => m_isDirty = true;
+
+        public void SetSmoothing(float smoothing)
+        {
+            m_smoothing = Mathf.Max(0f, smoothing);
+            SetDirty();
+        }
 
         public void SetClean()
         {

@@ -18,6 +18,7 @@ namespace IsoMesh
 
         [SerializeField]
         private Vector4 m_data = new Vector4(1f, 1f, 1f, 0f);
+        public Vector4 Data => m_data;
 
         [SerializeField]
         protected SDFCombineType m_operation;
@@ -25,6 +26,69 @@ namespace IsoMesh
 
         [SerializeField]
         protected bool m_flip = false;
+        public bool Flip => m_flip;
+
+        public void Configure(
+            SDFPrimitiveType type, Vector4 data, SDFCombineType operation,
+            float smoothing = 0f, bool flip = false)
+        {
+            m_type = type;
+            m_data = SanitizeData(type, data);
+            m_operation = operation;
+            m_smoothing = Mathf.Max(0f, smoothing);
+            m_flip = flip;
+            SetDirty();
+        }
+
+        public void SetType(SDFPrimitiveType type)
+        {
+            m_type = type;
+            m_data = SanitizeData(type, m_data);
+            SetDirty();
+        }
+
+        public void SetData(Vector4 data)
+        {
+            m_data = SanitizeData(m_type, data);
+            SetDirty();
+        }
+
+        public void SetOperation(SDFCombineType operation)
+        {
+            m_operation = operation;
+            SetDirty();
+        }
+
+        public void SetFlip(bool flip)
+        {
+            m_flip = flip;
+            SetDirty();
+        }
+
+        private static Vector4 SanitizeData(SDFPrimitiveType type, Vector4 data)
+        {
+            switch (type)
+            {
+                case SDFPrimitiveType.Sphere:
+                    return new Vector4(Mathf.Max(0f, data.x), 0f, 0f, 0f);
+                case SDFPrimitiveType.Torus:
+                    return new Vector4(
+                        Mathf.Max(0f, data.x), Mathf.Max(0f, data.y), 0f, 0f);
+                case SDFPrimitiveType.Cuboid:
+                    return new Vector4(
+                        Mathf.Max(0f, data.x), Mathf.Max(0f, data.y),
+                        Mathf.Max(0f, data.z), 0f);
+                case SDFPrimitiveType.BoxFrame:
+                    return new Vector4(
+                        Mathf.Max(0f, data.x), Mathf.Max(0f, data.y),
+                        Mathf.Max(0f, data.z), Mathf.Max(0f, data.w));
+                case SDFPrimitiveType.Cylinder:
+                    return new Vector4(
+                        Mathf.Max(0f, data.x), Mathf.Max(0f, data.y), 0f, 0f);
+                default:
+                    return data;
+            }
+        }
 
         protected override void TryDeregister()
         {
