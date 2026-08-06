@@ -42,10 +42,20 @@ namespace IsoMesh
                         return MapTorus(p, data.Data) * data.Flip;
                     case SDFPrimitiveType.Cuboid:
                         return MapRoundedBox(p, data.Data, data.Data.w) * data.Flip;
+                    case SDFPrimitiveType.BoxFrame:
+                        return MapBoxFrame(p, data.Data, data.Data.w) * data.Flip;
                     case SDFPrimitiveType.Cylinder:
                         return MapCylinder(p, data.Data.x, data.Data.y) * data.Flip;
+                    case SDFPrimitiveType.Capsule:
+                        return MapCapsule(p, data.Data.x, data.Data.y) * data.Flip;
+                    case SDFPrimitiveType.Ellipsoid:
+                        return MapEllipsoid(p, data.Data) * data.Flip;
+                    case SDFPrimitiveType.Cone:
+                        return MapCone(p, data.Data.x, data.Data.y) * data.Flip;
+                    case SDFPrimitiveType.Pyramid:
+                        return MapPyramid(p, data.Data.x, data.Data.y) * data.Flip;
                     default:
-                        return MapBoxFrame(p, data.Data, data.Data.w) * data.Flip;
+                        return 10000000f;
                 }
             }
         }
@@ -317,6 +327,85 @@ namespace IsoMesh
             float three = Max(new Vector3(q.x, q.y, p.z), 0f).magnitude + Mathf.Min(Mathf.Max(q.x, Mathf.Max(q.y, p.z)), 0f);
 
             return Mathf.Min(one, two, three);
+        }
+
+        public static float MapCapsule(Vector3 p, float radius, float halfSegment)
+        {
+            p.y -= Mathf.Clamp(p.y, -halfSegment, halfSegment);
+            return p.magnitude - radius;
+        }
+
+        public static float MapEllipsoid(Vector3 p, Vector3 radii)
+        {
+            const float epsilon = 0.000001f;
+            radii = Max(radii, epsilon);
+            Vector3 radiiSquared = Vector3.Scale(radii, radii);
+            Vector3 pOverRadii = new Vector3(
+                p.x / radii.x, p.y / radii.y, p.z / radii.z);
+            Vector3 pOverRadiiSquared = new Vector3(
+                p.x / radiiSquared.x, p.y / radiiSquared.y, p.z / radiiSquared.z);
+            float k0 = pOverRadii.magnitude;
+            float k1 = pOverRadiiSquared.magnitude;
+            if (k1 < epsilon)
+            {
+                return -Mathf.Min(radii.x, Mathf.Min(radii.y, radii.z));
+            }
+            return k0 * (k0 - 1f) / k1;
+        }
+
+        public static float MapCone(Vector3 p, float radius, float halfHeight)
+        {
+            const float epsilon = 0.000001f;
+            Vector2 q = new Vector2(XZ(p).magnitude, p.y);
+            Vector2 k1 = new Vector2(0f, halfHeight);
+            Vector2 k2 = new Vector2(-radius, 2f * halfHeight);
+            Vector2 ca = new Vector2(
+                q.x - Mathf.Min(q.x, q.y < 0f ? radius : 0f),
+                Mathf.Abs(q.y) - halfHeight);
+            float denominator = Mathf.Max(Vector2.Dot(k2, k2), epsilon);
+            Vector2 cb = q - k1 +
+                         k2 * Mathf.Clamp01(Vector2.Dot(k1 - q, k2) / denominator);
+            float sign = cb.x < 0f && ca.y < 0f ? -1f : 1f;
+            return sign * Mathf.Sqrt(
+                Mathf.Min(Vector2.Dot(ca, ca), Vector2.Dot(cb, cb)));
+        }
+
+        public static float MapPyramid(Vector3 p, float halfWidth, float halfHeight)
+        {
+            const float epsilon = 0.000001f;
+            halfWidth = Mathf.Max(halfWidth, epsilon);
+            halfHeight = Mathf.Max(halfHeight, epsilon);
+            float scale = 2f * halfWidth;
+            p.y += halfHeight;
+            p /= scale;
+            float height = 2f * halfHeight / scale;
+            float m2 = height * height + 0.25f;
+
+            p.x = Mathf.Abs(p.x);
+            p.z = Mathf.Abs(p.z);
+            if (p.z > p.x)
+            {
+                float swap = p.x;
+                p.x = p.z;
+                p.z = swap;
+            }
+            p.x -= 0.5f;
+            p.z -= 0.5f;
+
+            Vector3 q = new Vector3(
+                p.z,
+                height * p.y - 0.5f * p.x,
+                height * p.x + 0.5f * p.y);
+            float s = Mathf.Max(-q.x, 0f);
+            float t = Mathf.Clamp01((q.y - 0.5f * p.z) / (m2 + 0.25f));
+            float a = m2 * (q.x + s) * (q.x + s) + q.y * q.y;
+            float b = m2 * (q.x + 0.5f * t) * (q.x + 0.5f * t) +
+                      (q.y - m2 * t) * (q.y - m2 * t);
+            float d2 = Mathf.Min(q.y, -q.x * m2 - q.y * 0.5f) > 0f
+                ? 0f
+                : Mathf.Min(a, b);
+            float sign = Mathf.Sign(Mathf.Max(q.z, -p.y));
+            return scale * Mathf.Sqrt((d2 + q.z * q.z) / m2) * sign;
         }
 
         public static float MapCylinder(Vector3 p, float h, float r)

@@ -19,6 +19,13 @@ namespace IsoMesh.Editor
             public static GUIContent Radius = new GUIContent("Radius", "The radius of the sphere.");
             public static GUIContent CylinderRadius = new GUIContent("Radius", "The radius of the cylinder.");
             public static GUIContent CylinderLength = new GUIContent("Length", "The length of the cylinder.");
+            public static GUIContent CapsuleRadius = new GUIContent("Radius", "The radius of the capsule.");
+            public static GUIContent CapsuleHalfSegment = new GUIContent("Half Segment", "Half the length of the capsule segment between the cap centres.");
+            public static GUIContent EllipsoidRadii = new GUIContent("Radii", "The x, y, and z radii of the ellipsoid.");
+            public static GUIContent ConeRadius = new GUIContent("Base Radius", "The radius of the cone base.");
+            public static GUIContent ConeHalfHeight = new GUIContent("Half Height", "Half the total height of the cone.");
+            public static GUIContent PyramidHalfWidth = new GUIContent("Base Half Width", "Half the width and depth of the square pyramid base.");
+            public static GUIContent PyramidHalfHeight = new GUIContent("Half Height", "Half the total height of the pyramid.");
             public static GUIContent MajorRadius = new GUIContent("Major Radius", "The radius of the whole torus.");
             public static GUIContent MinorRadius = new GUIContent("Minor Radius", "The radius of the tube of the torus.");
             public static GUIContent Thickness = new GUIContent("Thickness", "The thickness of the frame.");
@@ -122,6 +129,21 @@ namespace IsoMesh.Editor
                     case SDFPrimitiveType.Cylinder:
                         m_setter.DrawVectorSettingX(Labels.CylinderRadius, m_serializedProperties.Data, min: 0f);
                         m_setter.DrawVectorSettingY(Labels.CylinderLength, m_serializedProperties.Data, min: 0f);
+                        break;
+                    case SDFPrimitiveType.Capsule:
+                        m_setter.DrawVectorSettingX(Labels.CapsuleRadius, m_serializedProperties.Data, min: 0f);
+                        m_setter.DrawVectorSettingY(Labels.CapsuleHalfSegment, m_serializedProperties.Data, min: 0f);
+                        break;
+                    case SDFPrimitiveType.Ellipsoid:
+                        m_setter.DrawVector3Setting(Labels.EllipsoidRadii, m_serializedProperties.Data, min: 0f);
+                        break;
+                    case SDFPrimitiveType.Cone:
+                        m_setter.DrawVectorSettingX(Labels.ConeRadius, m_serializedProperties.Data, min: 0f);
+                        m_setter.DrawVectorSettingY(Labels.ConeHalfHeight, m_serializedProperties.Data, min: 0f);
+                        break;
+                    case SDFPrimitiveType.Pyramid:
+                        m_setter.DrawVectorSettingX(Labels.PyramidHalfWidth, m_serializedProperties.Data, min: 0f);
+                        m_setter.DrawVectorSettingY(Labels.PyramidHalfHeight, m_serializedProperties.Data, min: 0f);
                         break;
                 }
             }
