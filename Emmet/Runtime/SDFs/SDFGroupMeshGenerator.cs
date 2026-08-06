@@ -1,7 +1,9 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using System.Runtime.InteropServices;
 using Unity.Collections;
+using Unity.Profiling;
 using UnityEngine.Rendering;
 using UnityEngine.Events;
 
@@ -28,6 +30,15 @@ namespace IsoMesh
 
         public UnityEvent OnDataChanged = new UnityEvent();
         public UnityEvent OnBufferUpdated = new UnityEvent();
+
+        public bool IsMeshGenerationPending => m_isCoroutineRunning;
+        public bool HasQueuedMeshGeneration => m_meshUpdateQueued;
+        public int MeshGenerationRequestCount { get; private set; }
+        public int MeshGenerationStartCount { get; private set; }
+        public int MeshGenerationCoalescedCount { get; private set; }
+        public int MeshGenerationCompletedCount { get; private set; }
+        public double LastMeshGenerationMilliseconds { get; private set; }
+        public event Action<bool> MeshGenerationFinished;
 
         #endregion
 
@@ -72,6 +83,15 @@ namespace IsoMesh
 
             public static readonly int ProceduralArgs_RWBuffer = Shader.PropertyToID("_ProceduralArgs");
         }
+
+        private static readonly ProfilerMarker sm_DispatchProfilerMarker =
+            new ProfilerMarker("IsoMesh.SDFMesh.Dispatch");
+        private static readonly ProfilerMarker sm_SynchronousReadbackProfilerMarker =
+            new ProfilerMarker("IsoMesh.SDFMesh.SynchronousReadback");
+        private static readonly ProfilerMarker sm_AsyncReadbackRequestProfilerMarker =
+            new ProfilerMarker("IsoMesh.SDFMesh.AsyncReadbackRequest");
+        private static readonly ProfilerMarker sm_MeshUploadProfilerMarker =
+            new ProfilerMarker("IsoMesh.SDFMesh.MeshUpload");
 
         private struct Kernels
         {
@@ -333,12 +353,16 @@ namespace IsoMesh
 
         private void Update()
         {
-            if ((transform.hasChanged || (m_mainSettings.OutputMode == OutputMode.MeshFilter && TryGetOrCreateMeshGameObject(out GameObject meshGameObject) && meshGameObject.transform.hasChanged)) && Group.IsReady && !Group.IsEmpty && Group.IsRunning)
+            if (m_mainSettings.AutoUpdate &&
+                (transform.hasChanged ||
+                 (m_mainSettings.OutputMode == OutputMode.MeshFilter &&
+                  TryGetOrCreateMeshGameObject(out GameObject meshGameObject) &&
+                  meshGameObject.transform.hasChanged)) &&
+                Group.IsReady && !Group.IsEmpty && Group.IsRunning)
             {
                 if (TryGetOrCreateMeshGameObject(out meshGameObject))
                     meshGameObject.transform.hasChanged = false;
 
-                SendTransformToGPU();
                 UpdateMesh();
             }
 
@@ -362,21 +386,43 @@ namespace IsoMesh
             if (!m_initialized || !Group.IsReady || Group.IsEmpty)
                 return;
 
+            MeshGenerationRequestCount++;
+            SendTransformToGPU();
+
             if (m_mainSettings.OutputMode == OutputMode.MeshFilter)
             {
-                if (m_mainSettings.IsAsynchronous)
+                if (m_mainSettings.IsAsynchronous && SystemInfo.supportsAsyncGPUReadback)
                 {
-                    if (!m_isCoroutineRunning)
-                        StartCoroutine(Cr_GetMeshDataFromGPUAsync());
+                    if (m_isCoroutineRunning)
+                    {
+                        m_meshUpdateQueued = true;
+                        MeshGenerationCoalescedCount++;
+                        return;
+                    }
+
+                    StartCoroutine(Cr_GetMeshDataFromGPUAsync());
                 }
                 else
                 {
-                    GetMeshDataFromGPU();
+                    double startTime = Time.realtimeSinceStartupAsDouble;
+                    MeshGenerationStartCount++;
+                    bool completed;
+                    using (sm_SynchronousReadbackProfilerMarker.Auto())
+                    {
+                        completed = GetMeshDataFromGPU();
+                    }
+                    if (completed)
+                        CompleteMeshGeneration(startTime);
+                    else
+                        MeshGenerationFinished?.Invoke(false);
                 }
             }
             else
             {
+                MeshGenerationStartCount++;
                 Dispatch();
+                MeshGenerationCompletedCount++;
+                MeshGenerationFinished?.Invoke(true);
             }
         }
 
@@ -404,7 +450,7 @@ namespace IsoMesh
             ReallocateArrayIfNeeded(ref indices, triangleCount * 3);
         }
 
-        private void GetMeshDataFromGPU()
+        private bool GetMeshDataFromGPU()
         {
             Dispatch();
 
@@ -415,16 +461,16 @@ namespace IsoMesh
 
             if (counterRequest.hasError)
             {
-                Debug.LogError("AsyncGPUReadbackRequest encountered an error.");
-                return;
+                Debug.LogError("IsoMeshMeshReadback: Counter readback request failed.", this);
+                return false;
             }
 
             counterRequest.WaitForCompletion();
 
             if (counterRequest.hasError)
             {
-                Debug.LogError("AsyncGPUReadbackRequest encountered an error.");
-                return;
+                Debug.LogError("IsoMeshMeshReadback: Counter readback failed.", this);
+                return false;
             }
 
             GetCounts(m_outputCounterNativeArray, out int vertexCount, out int triangleCount);
@@ -444,16 +490,16 @@ namespace IsoMesh
 
                 if (vertexRequest.hasError || normalRequest.hasError || colourRequest.hasError || triangleRequest.hasError)
                 {
-                    Debug.LogError("AsyncGPUReadbackRequest encountered an error.");
-                    return;
+                    Debug.LogError("IsoMeshMeshReadback: Geometry readback request failed.", this);
+                    return false;
                 }
 
                 AsyncGPUReadback.WaitAllRequests();
 
                 if (vertexRequest.hasError || normalRequest.hasError || colourRequest.hasError || triangleRequest.hasError)
                 {
-                    Debug.LogError("AsyncGPUReadbackRequest encountered an error.");
-                    return;
+                    Debug.LogError("IsoMeshMeshReadback: Geometry readback failed.", this);
+                    return false;
                 }
 
                 SetMeshData(m_nativeArrayVertices, m_nativeArrayNormals/*, m_nativeArrayUVs*/, m_nativeArrayColours, m_nativeArrayTriangles, vertexCount, triangleCount);
@@ -466,9 +512,12 @@ namespace IsoMesh
                 if (MeshCollider)
                     MeshCollider.enabled = false;
             }
+
+            return true;
         }
 
         private bool m_isCoroutineRunning = false;
+        private bool m_meshUpdateQueued = false;
 
         /// <summary>
         /// This is the asynchronous version of <see cref="GetMeshDataFromGPU"/>. Use it as a coroutine. It uses a member variable to prevent duplicates from running at the same time.
@@ -476,82 +525,169 @@ namespace IsoMesh
         private IEnumerator Cr_GetMeshDataFromGPUAsync()
         {
             if (m_isCoroutineRunning)
+            {
+                m_meshUpdateQueued = true;
+                MeshGenerationCoalescedCount++;
                 yield break;
+            }
 
             m_isCoroutineRunning = true;
+            MeshGenerationStartCount++;
+            double startTime = Time.realtimeSinceStartupAsDouble;
+            bool completed = false;
 
-            Dispatch();
-
-            if (m_outputCounterNativeArray == null || !m_outputCounterNativeArray.IsCreated)
-                m_outputCounterNativeArray = new NativeArray<int>(m_counterBuffer.count, Allocator.Persistent);
-
-            AsyncGPUReadbackRequest counterRequest = AsyncGPUReadback.RequestIntoNativeArray(ref m_outputCounterNativeArray, m_counterBuffer);
-
-            while (!counterRequest.done)
-                yield return null;
-
-            GetCounts(m_outputCounterNativeArray, out int vertexCount, out int triangleCount);
-
-            if (triangleCount > 0)
+            try
             {
-                ReallocateNativeArrays(vertexCount, triangleCount, ref m_nativeArrayVertices, ref m_nativeArrayNormals, ref m_nativeArrayColours/*m_nativeArrayUVs*/, ref m_nativeArrayTriangles);
+                Dispatch();
 
-                int vertexRequestSize = Mathf.Min(m_nativeArrayVertices.Length, m_meshVerticesBuffer.count, vertexCount);
-                int triangleRequestSize = Mathf.Min(m_nativeArrayTriangles.Length, m_meshTrianglesBuffer.count, triangleCount * 3);
+                if (m_outputCounterNativeArray == null || !m_outputCounterNativeArray.IsCreated)
+                    m_outputCounterNativeArray = new NativeArray<int>(m_counterBuffer.count, Allocator.Persistent);
 
-                AsyncGPUReadbackRequest vertexRequest = AsyncGPUReadback.RequestIntoNativeArray(ref m_nativeArrayVertices, m_meshVerticesBuffer, vertexRequestSize * sizeof(float) * 3, 0);
-                AsyncGPUReadbackRequest normalRequest = AsyncGPUReadback.RequestIntoNativeArray(ref m_nativeArrayNormals, m_meshNormalsBuffer, vertexRequestSize * sizeof(float) * 3, 0);
-                //AsyncGPUReadbackRequest uvRequest = AsyncGPUReadback.RequestIntoNativeArray(ref m_nativeArrayUVs, m_meshUVsBuffer, vertexRequestSize * sizeof(float) * 2, 0);
-                AsyncGPUReadbackRequest colourRequest = AsyncGPUReadback.RequestIntoNativeArray(ref m_nativeArrayColours, m_meshVertexColoursBuffer, vertexRequestSize * sizeof(float) * 4, 0);
-                AsyncGPUReadbackRequest triangleRequest = AsyncGPUReadback.RequestIntoNativeArray(ref m_nativeArrayTriangles, m_meshTrianglesBuffer, triangleRequestSize * sizeof(int), 0);
+                AsyncGPUReadbackRequest counterRequest;
+                using (sm_AsyncReadbackRequestProfilerMarker.Auto())
+                {
+                    counterRequest = AsyncGPUReadback.RequestIntoNativeArray(
+                        ref m_outputCounterNativeArray, m_counterBuffer);
+                }
 
-                while (!vertexRequest.done && !normalRequest.done && !colourRequest.done/*!uvRequest.done*/ && !triangleRequest.done)
+                while (!counterRequest.done)
                     yield return null;
 
-                SetMeshData(m_nativeArrayVertices, m_nativeArrayNormals, m_nativeArrayColours/*m_nativeArrayUVs*/, m_nativeArrayTriangles, vertexCount, triangleCount);
+                if (counterRequest.hasError)
+                {
+                    Debug.LogError("IsoMeshAsyncReadback: Counter readback failed.", this);
+                    yield break;
+                }
+
+                GetCounts(m_outputCounterNativeArray, out int vertexCount, out int triangleCount);
+
+                if (triangleCount > 0)
+                {
+                    ReallocateNativeArrays(
+                        vertexCount, triangleCount, ref m_nativeArrayVertices,
+                        ref m_nativeArrayNormals, ref m_nativeArrayColours,
+                        ref m_nativeArrayTriangles);
+
+                    int vertexRequestSize = Mathf.Min(
+                        m_nativeArrayVertices.Length, m_meshVerticesBuffer.count, vertexCount);
+                    int triangleRequestSize = Mathf.Min(
+                        m_nativeArrayTriangles.Length, m_meshTrianglesBuffer.count,
+                        triangleCount * 3);
+
+                    AsyncGPUReadbackRequest vertexRequest;
+                    AsyncGPUReadbackRequest normalRequest;
+                    AsyncGPUReadbackRequest colourRequest;
+                    AsyncGPUReadbackRequest triangleRequest;
+                    using (sm_AsyncReadbackRequestProfilerMarker.Auto())
+                    {
+                        vertexRequest = AsyncGPUReadback.RequestIntoNativeArray(
+                            ref m_nativeArrayVertices, m_meshVerticesBuffer,
+                            vertexRequestSize * sizeof(float) * 3, 0);
+                        normalRequest = AsyncGPUReadback.RequestIntoNativeArray(
+                            ref m_nativeArrayNormals, m_meshNormalsBuffer,
+                            vertexRequestSize * sizeof(float) * 3, 0);
+                        colourRequest = AsyncGPUReadback.RequestIntoNativeArray(
+                            ref m_nativeArrayColours, m_meshVertexColoursBuffer,
+                            vertexRequestSize * sizeof(float) * 4, 0);
+                        triangleRequest = AsyncGPUReadback.RequestIntoNativeArray(
+                            ref m_nativeArrayTriangles, m_meshTrianglesBuffer,
+                            triangleRequestSize * sizeof(int), 0);
+                    }
+
+                    while (!vertexRequest.done || !normalRequest.done ||
+                           !colourRequest.done || !triangleRequest.done)
+                    {
+                        yield return null;
+                    }
+
+                    if (vertexRequest.hasError || normalRequest.hasError ||
+                        colourRequest.hasError || triangleRequest.hasError)
+                    {
+                        Debug.LogError("IsoMeshAsyncReadback: Geometry readback failed.", this);
+                        yield break;
+                    }
+
+                    SetMeshData(
+                        m_nativeArrayVertices, m_nativeArrayNormals, m_nativeArrayColours,
+                        m_nativeArrayTriangles, vertexCount, triangleCount);
+                }
+                else
+                {
+                    if (MeshRenderer)
+                        MeshRenderer.enabled = false;
+
+                    if (MeshCollider)
+                        MeshCollider.enabled = false;
+                }
+
+                completed = true;
             }
-            else
+            finally
             {
-                if (MeshRenderer)
-                    MeshRenderer.enabled = false;
+                m_isCoroutineRunning = false;
+                bool runQueuedUpdate = m_meshUpdateQueued;
+                m_meshUpdateQueued = false;
 
-                if (MeshCollider)
-                    MeshCollider.enabled = false;
+                if (runQueuedUpdate && CanGenerateMesh())
+                    StartCoroutine(Cr_GetMeshDataFromGPUAsync());
+
+                if (completed)
+                    CompleteMeshGeneration(startTime);
+                else
+                    MeshGenerationFinished?.Invoke(false);
             }
+        }
 
-            m_isCoroutineRunning = false;
+        private bool CanGenerateMesh()
+        {
+            return m_isEnabled && isActiveAndEnabled && m_initialized &&
+                   m_counterBuffer != null && m_counterBuffer.IsValid() &&
+                   Group && Group.IsReady && !Group.IsEmpty;
+        }
+
+        private void CompleteMeshGeneration(double startTime)
+        {
+            LastMeshGenerationMilliseconds =
+                (Time.realtimeSinceStartupAsDouble - startTime) * 1000.0;
+            MeshGenerationCompletedCount++;
+            MeshGenerationFinished?.Invoke(true);
         }
 
         private void SetMeshData(NativeArray<Vector3> vertices, NativeArray<Vector3> normals/*, NativeArray<Vector2> uvs*/, NativeArray<Color> colours, NativeArray<int> indices, int vertexCount, int triangleCount)
         {
-            if (MeshRenderer)
-                MeshRenderer.enabled = true;
-
-            if (MeshCollider)
-                MeshCollider.enabled = true;
-
-            if (m_mesh == null)
+            using (sm_MeshUploadProfilerMarker.Auto())
             {
-                m_mesh = new Mesh()
+                if (MeshRenderer)
+                    MeshRenderer.enabled = true;
+
+                if (MeshCollider)
+                    MeshCollider.enabled = true;
+
+                if (m_mesh == null)
                 {
-                    indexFormat = IndexFormat.UInt32
-                };
+                    m_mesh = new Mesh()
+                    {
+                        indexFormat = IndexFormat.UInt32
+                    };
+                }
+                else
+                {
+                    m_mesh.Clear();
+                }
+
+                m_mesh.SetVertices(vertices, 0, vertexCount);
+                m_mesh.SetNormals(normals, 0, vertexCount);
+                //m_mesh.SetUVs(0, uvs, 0, vertexCount);
+                m_mesh.SetColors(colours, 0, vertexCount);
+                m_mesh.SetIndices(
+                    indices, 0, triangleCount * 3, MeshTopology.Triangles, 0,
+                    calculateBounds: true);
+
+                MeshFilter.mesh = m_mesh;
+
+                if (MeshCollider)
+                    MeshCollider.sharedMesh = m_mesh;
             }
-            else
-            {
-                m_mesh.Clear();
-            }
-
-            m_mesh.SetVertices(vertices, 0, vertexCount);
-            m_mesh.SetNormals(normals, 0, vertexCount);
-            //m_mesh.SetUVs(0, uvs, 0, vertexCount);
-            m_mesh.SetColors(colours, 0, vertexCount);
-            m_mesh.SetIndices(indices, 0, triangleCount * 3, MeshTopology.Triangles, 0, calculateBounds: true);
-
-            MeshFilter.mesh = m_mesh;
-
-            if (MeshCollider)
-                MeshCollider.sharedMesh = m_mesh;
         }
 
         private bool TryGetOrCreateMeshGameObject(out GameObject meshGameObject)
@@ -740,7 +876,12 @@ namespace IsoMesh
         /// </summary>
         private void ReleaseUnmanagedMemory()
         {
+            m_meshUpdateQueued = false;
             StopAllCoroutines();
+
+            // Both the source buffers and destination NativeArrays must remain alive until every
+            // outstanding readback has finished.
+            AsyncGPUReadback.WaitAllRequests();
             m_isCoroutineRunning = false;
 
             m_counterBuffer?.Dispose();
@@ -759,9 +900,6 @@ namespace IsoMesh
             m_meshVertexMaterialsBuffer?.Dispose();
 
             m_intermediateVertexBuffer?.Dispose();
-
-            // need to do this because some of the below native arrays might be 'in use' by requests
-            AsyncGPUReadback.WaitAllRequests();
 
             if (m_outputCounterNativeArray != null && m_outputCounterNativeArray.IsCreated)
                 m_outputCounterNativeArray.Dispose();
@@ -852,14 +990,17 @@ namespace IsoMesh
             if (m_counterBuffer == null || !m_counterBuffer.IsValid())
                 return;
 
-            ResetCounters();
+            using (sm_DispatchProfilerMarker.Auto())
+            {
+                ResetCounters();
 
-            DispatchMap();
-            DispatchGenerateVertices();
-            DispatchNumberVertices();
-            DispatchGenerateTriangles();
-            DispatchBuildIndexBuffer();
-            DispatchAddIntermediateVerticesToIndexBuffer();
+                DispatchMap();
+                DispatchGenerateVertices();
+                DispatchNumberVertices();
+                DispatchGenerateTriangles();
+                DispatchBuildIndexBuffer();
+                DispatchAddIntermediateVerticesToIndexBuffer();
+            }
 
             OnBufferUpdated.Invoke();
         }
