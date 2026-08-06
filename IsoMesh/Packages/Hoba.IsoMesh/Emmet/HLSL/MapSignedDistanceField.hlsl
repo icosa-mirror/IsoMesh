@@ -6,6 +6,10 @@
 #define PRIMITIVE_TYPE_CUBOID 3
 #define PRIMITIVE_TYPE_BOX_FRAME 4
 #define PRIMITIVE_TYPE_CYLINDER 5
+#define PRIMITIVE_TYPE_CAPSULE 6
+#define PRIMITIVE_TYPE_ELLIPSOID 7
+#define PRIMITIVE_TYPE_CONE 8
+#define PRIMITIVE_TYPE_PYRAMID 9
 
 #define OPERATION_TYPE_ELONGATE 1
 #define OPERATION_TYPE_ROUND 2
@@ -244,10 +248,20 @@ float sdf(float3 p, SDFGPUData data)
                 return sdf_torus(p, data.Data.xy) * data.Flip;
             case PRIMITIVE_TYPE_CUBOID:
                 return sdf_roundedBox(p, data.Data.xyz, data.Data.w) * data.Flip;
+            case PRIMITIVE_TYPE_BOX_FRAME:
+                return sdf_boxFrame(p, data.Data.xyz, data.Data.w) * data.Flip;
             case PRIMITIVE_TYPE_CYLINDER:
                 return sdf_cylinder(p, data.Data.x, data.Data.y) * data.Flip;
+            case PRIMITIVE_TYPE_CAPSULE:
+                return sdf_capsule(p, data.Data.x, data.Data.y) * data.Flip;
+            case PRIMITIVE_TYPE_ELLIPSOID:
+                return sdf_ellipsoid(p, data.Data.xyz) * data.Flip;
+            case PRIMITIVE_TYPE_CONE:
+                return sdf_cone(p, data.Data.x, data.Data.y) * data.Flip;
+            case PRIMITIVE_TYPE_PYRAMID:
+                return sdf_pyramid(p, data.Data.x, data.Data.y) * data.Flip;
             default:
-                return sdf_boxFrame(p, data.Data.xyz, data.Data.w) * data.Flip;
+                return MAX_DISTANCE;
         }
     }
 }
@@ -318,9 +332,28 @@ float2 sdf_uv(float3 p, SDFGPUData data, out float dist)
             case PRIMITIVE_TYPE_CUBOID:
                 dist = sdf_roundedBox(p, data.Data.xyz, data.Data.w) * data.Flip;
                 return sdf_uv_triplanar(p, data.Data.xyz, sdf_box_normal(p, data.Data.xyz));
-            default:
+            case PRIMITIVE_TYPE_BOX_FRAME:
                 dist = sdf_boxFrame(p, data.Data.xyz, data.Data.w) * data.Flip;
                 return sdf_uv_triplanar(p, data.Data.xyz, sdf_box_normal(p, data.Data.xyz));
+            case PRIMITIVE_TYPE_CYLINDER:
+                dist = sdf_cylinder(p, data.Data.x, data.Data.y) * data.Flip;
+                return sdf_uv_sphere(p, max(data.Data.x, data.Data.y));
+            case PRIMITIVE_TYPE_CAPSULE:
+                dist = sdf_capsule(p, data.Data.x, data.Data.y) * data.Flip;
+                return sdf_uv_sphere(p, data.Data.x + data.Data.y);
+            case PRIMITIVE_TYPE_ELLIPSOID:
+                dist = sdf_ellipsoid(p, data.Data.xyz) * data.Flip;
+                return sdf_uv_sphere(
+                    p, max(data.Data.x, max(data.Data.y, data.Data.z)));
+            case PRIMITIVE_TYPE_CONE:
+                dist = sdf_cone(p, data.Data.x, data.Data.y) * data.Flip;
+                return sdf_uv_sphere(p, max(data.Data.x, data.Data.y));
+            case PRIMITIVE_TYPE_PYRAMID:
+                dist = sdf_pyramid(p, data.Data.x, data.Data.y) * data.Flip;
+                return sdf_uv_sphere(p, max(data.Data.x, data.Data.y));
+            default:
+                dist = MAX_DISTANCE;
+                return float2(0.0, 0.0);
         }
     }
 }

@@ -85,6 +85,17 @@ namespace IsoMesh
                 case SDFPrimitiveType.Cylinder:
                     return new Vector4(
                         Mathf.Max(0f, data.x), Mathf.Max(0f, data.y), 0f, 0f);
+                case SDFPrimitiveType.Capsule:
+                    return new Vector4(
+                        Mathf.Max(0f, data.x), Mathf.Max(0f, data.y), 0f, 0f);
+                case SDFPrimitiveType.Ellipsoid:
+                    return new Vector4(
+                        Mathf.Max(0f, data.x), Mathf.Max(0f, data.y),
+                        Mathf.Max(0f, data.z), 0f);
+                case SDFPrimitiveType.Cone:
+                case SDFPrimitiveType.Pyramid:
+                    return new Vector4(
+                        Mathf.Max(0f, data.x), Mathf.Max(0f, data.y), 0f, 0f);
                 default:
                     return data;
             }
@@ -180,6 +191,68 @@ namespace IsoMesh
 							Handles.DrawWireDisc( Vector3.zero, Vector3.forward, m_data.x );
 						}
 						break;
+					case SDFPrimitiveType.Capsule:
+						{
+							float radius = m_data.x;
+							float halfSegment = m_data.y;
+							Vector3 top = Vector3.up * halfSegment;
+							Vector3 bottom = Vector3.down * halfSegment;
+							Handles.DrawWireDisc(top, Vector3.up, radius);
+							Handles.DrawWireDisc(top, Vector3.right, radius);
+							Handles.DrawWireDisc(top, Vector3.forward, radius);
+							Handles.DrawWireDisc(bottom, Vector3.up, radius);
+							Handles.DrawWireDisc(bottom, Vector3.right, radius);
+							Handles.DrawWireDisc(bottom, Vector3.forward, radius);
+							Handles.DrawLine(top + Vector3.right * radius,
+								bottom + Vector3.right * radius);
+							Handles.DrawLine(top + Vector3.left * radius,
+								bottom + Vector3.left * radius);
+							Handles.DrawLine(top + Vector3.forward * radius,
+								bottom + Vector3.forward * radius);
+							Handles.DrawLine(top + Vector3.back * radius,
+								bottom + Vector3.back * radius);
+						}
+						break;
+					case SDFPrimitiveType.Ellipsoid:
+						using (new Handles.DrawingScope(
+							col, transform.localToWorldMatrix * Matrix4x4.Scale(m_data.XYZ())))
+						{
+							Handles.DrawWireDisc(Vector3.zero, Vector3.up, 1f);
+							Handles.DrawWireDisc(Vector3.zero, Vector3.right, 1f);
+							Handles.DrawWireDisc(Vector3.zero, Vector3.forward, 1f);
+						}
+						break;
+					case SDFPrimitiveType.Cone:
+						{
+							float radius = m_data.x;
+							float halfHeight = m_data.y;
+							Vector3 baseCenter = Vector3.down * halfHeight;
+							Vector3 apex = Vector3.up * halfHeight;
+							Handles.DrawWireDisc(baseCenter, Vector3.up, radius);
+							Handles.DrawLine(apex, baseCenter + Vector3.right * radius);
+							Handles.DrawLine(apex, baseCenter + Vector3.left * radius);
+							Handles.DrawLine(apex, baseCenter + Vector3.forward * radius);
+							Handles.DrawLine(apex, baseCenter + Vector3.back * radius);
+						}
+						break;
+					case SDFPrimitiveType.Pyramid:
+						{
+							float halfWidth = m_data.x;
+							float halfHeight = m_data.y;
+							Vector3 apex = Vector3.up * halfHeight;
+							Vector3[] corners = {
+								new Vector3(-halfWidth, -halfHeight, -halfWidth),
+								new Vector3(halfWidth, -halfHeight, -halfWidth),
+								new Vector3(halfWidth, -halfHeight, halfWidth),
+								new Vector3(-halfWidth, -halfHeight, halfWidth)
+							};
+							for (int i = 0; i < corners.Length; ++i)
+							{
+								Handles.DrawLine(corners[i], corners[(i + 1) % corners.Length]);
+								Handles.DrawLine(corners[i], apex);
+							}
+						}
+						break;
 					default:						
 						break;
 				}
@@ -222,6 +295,18 @@ namespace IsoMesh
         [MenuItem("GameObject/SDFs/Cylinder", false, priority: 2)]
         private static void CreateCylinder(MenuCommand menuCommand) => CreateNewPrimitive(SDFPrimitiveType.Cylinder, new Vector4(1f, 1f, 0f, 0f));
 
+        [MenuItem("GameObject/SDFs/Capsule", false, priority: 2)]
+        private static void CreateCapsule(MenuCommand menuCommand) => CreateNewPrimitive(SDFPrimitiveType.Capsule, new Vector4(0.5f, 0.5f, 0f, 0f));
+
+        [MenuItem("GameObject/SDFs/Ellipsoid", false, priority: 2)]
+        private static void CreateEllipsoid(MenuCommand menuCommand) => CreateNewPrimitive(SDFPrimitiveType.Ellipsoid, new Vector4(1f, 0.75f, 0.5f, 0f));
+
+        [MenuItem("GameObject/SDFs/Cone", false, priority: 2)]
+        private static void CreateCone(MenuCommand menuCommand) => CreateNewPrimitive(SDFPrimitiveType.Cone, new Vector4(1f, 1f, 0f, 0f));
+
+        [MenuItem("GameObject/SDFs/Pyramid", false, priority: 2)]
+        private static void CreatePyramid(MenuCommand menuCommand) => CreateNewPrimitive(SDFPrimitiveType.Pyramid, new Vector4(1f, 1f, 0f, 0f));
+
 #endif
         #endregion
     }
@@ -232,6 +317,10 @@ namespace IsoMesh
         Torus,
         Cuboid,
         BoxFrame, 
-        Cylinder
+        Cylinder,
+        Capsule,
+        Ellipsoid,
+        Cone,
+        Pyramid
     }
 }

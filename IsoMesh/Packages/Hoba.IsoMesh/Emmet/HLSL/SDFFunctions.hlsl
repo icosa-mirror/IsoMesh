@@ -25,6 +25,67 @@ float sdf_cylinder(float3 p, float h, float r)
     return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
+float sdf_capsule(float3 p, float radius, float halfSegment)
+{
+    p.y -= clamp(p.y, -halfSegment, halfSegment);
+    return length(p) - radius;
+}
+
+float sdf_ellipsoid(float3 p, float3 radii)
+{
+    static const float epsilon = 0.000001;
+    radii = max(radii, epsilon);
+    float k0 = length(p / radii);
+    float k1 = length(p / (radii * radii));
+    if (k1 < epsilon)
+        return -min(radii.x, min(radii.y, radii.z));
+    return k0 * (k0 - 1.0) / k1;
+}
+
+float sdf_cone(float3 p, float radius, float halfHeight)
+{
+    static const float epsilon = 0.000001;
+    float2 q = float2(length(p.xz), p.y);
+    float2 k1 = float2(0.0, halfHeight);
+    float2 k2 = float2(-radius, 2.0 * halfHeight);
+    float2 ca = float2(
+        q.x - min(q.x, q.y < 0.0 ? radius : 0.0),
+        abs(q.y) - halfHeight);
+    float denominator = max(dot(k2, k2), epsilon);
+    float2 cb = q - k1 + k2 * saturate(dot(k1 - q, k2) / denominator);
+    float signValue = cb.x < 0.0 && ca.y < 0.0 ? -1.0 : 1.0;
+    return signValue * sqrt(min(dot(ca, ca), dot(cb, cb)));
+}
+
+float sdf_pyramid(float3 p, float halfWidth, float halfHeight)
+{
+    static const float epsilon = 0.000001;
+    halfWidth = max(halfWidth, epsilon);
+    halfHeight = max(halfHeight, epsilon);
+    float scale = 2.0 * halfWidth;
+    p.y += halfHeight;
+    p /= scale;
+    float height = 2.0 * halfHeight / scale;
+    float m2 = height * height + 0.25;
+
+    p.xz = abs(p.xz);
+    p.xz = p.z > p.x ? p.zx : p.xz;
+    p.xz -= 0.5;
+
+    float3 q = float3(
+        p.z,
+        height * p.y - 0.5 * p.x,
+        height * p.x + 0.5 * p.y);
+    float s = max(-q.x, 0.0);
+    float t = saturate((q.y - 0.5 * p.z) / (m2 + 0.25));
+    float a = m2 * (q.x + s) * (q.x + s) + q.y * q.y;
+    float b = m2 * (q.x + 0.5 * t) * (q.x + 0.5 * t) +
+              (q.y - m2 * t) * (q.y - m2 * t);
+    float d2 = min(q.y, -q.x * m2 - q.y * 0.5) > 0.0 ? 0.0 : min(a, b);
+    float signValue = sign(max(q.z, -p.y));
+    return scale * sqrt((d2 + q.z * q.z) / m2) * signValue;
+}
+
 float sdf_box(float3 p, float3 b)
 {
     float3 q = abs(p) - b;
