@@ -2,6 +2,11 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
+#if UNITY_6000_4_OR_NEWER
+using MeshAssetId = UnityEngine.EntityId;
+#else
+using MeshAssetId = System.Int32;
+#endif
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.Compilation;
@@ -74,9 +79,9 @@ namespace IsoMesh
         private List<SDFObject> m_sdfObjects = new List<SDFObject>();
 
         private static readonly List<SDFMesh> m_globalSDFMeshes = new List<SDFMesh>();
-        private static readonly Dictionary<int, int> m_meshSdfSampleStartIndices = new Dictionary<int, int>();
-        private static readonly Dictionary<int, int> m_meshSdfUVStartIndices = new Dictionary<int, int>();
-        private static readonly Dictionary<int, int> m_meshCounts = new Dictionary<int, int>();
+        private static readonly Dictionary<MeshAssetId, int> m_meshSdfSampleStartIndices = new Dictionary<MeshAssetId, int>();
+        private static readonly Dictionary<MeshAssetId, int> m_meshSdfUVStartIndices = new Dictionary<MeshAssetId, int>();
+        private static readonly Dictionary<MeshAssetId, int> m_meshCounts = new Dictionary<MeshAssetId, int>();
         private static readonly List<float> m_meshSamples = new List<float>();
         private static readonly List<float> m_meshPackedUVs = new List<float>();
 

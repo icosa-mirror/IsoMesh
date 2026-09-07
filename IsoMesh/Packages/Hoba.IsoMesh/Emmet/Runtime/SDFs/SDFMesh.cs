@@ -11,7 +11,11 @@ namespace IsoMesh
 {
 	public class SDFMesh : SDFObject
 	{
+#if UNITY_6000_4_OR_NEWER
+		public EntityId ID => m_asset.GetEntityId();
+#else
 		public int ID => m_asset.GetInstanceID();
+#endif
 
 		[SerializeField]
 		private SDFMeshAsset m_asset;
