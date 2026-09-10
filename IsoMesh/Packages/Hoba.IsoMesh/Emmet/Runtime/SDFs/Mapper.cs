@@ -197,13 +197,15 @@ namespace IsoMesh
             float normalSmoothing = smoothing < 0f ? m_settings.NormalSmoothing : smoothing;
             normalSmoothing = Mathf.Max(normalSmoothing, MIN_NORMAL_SMOOTHING_CPU);
 
+            // The weighted tetrahedral sum is 4*h*h times the gradient.
+            // Restore its scale before normalization so Unity does not discard valid small vectors.
             Vector2 e = new Vector2(normalSmoothing, -normalSmoothing);
 
             return (
                 XYY(e) * Map(p + XYY(e)) +
                 YYX(e) * Map(p + YYX(e)) +
                 YXY(e) * Map(p + YXY(e)) +
-                XXX(e) * Map(p + XXX(e)));
+                XXX(e) * Map(p + XXX(e))) / (4f * normalSmoothing * normalSmoothing);
         }
 
         /// <summary>
